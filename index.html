@@ -343,7 +343,13 @@ input[type=range]:focus-visible{box-shadow:0 0 0 3px var(--gold-soft)}
   display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:center;
   background:var(--surface); border:1px solid var(--line); border-radius:12px;
   padding:13px 16px; margin-bottom:10px; box-shadow:var(--shadow);
+  position:relative;
 }
+@keyframes rowPulse{
+  0%   { box-shadow:0 0 0 2px var(--money), 0 8px 20px rgba(30,138,91,.28); background:var(--money-soft); }
+  100% { box-shadow:var(--shadow); background:var(--surface); }
+}
+.prog-row.just-moved{ animation:rowPulse .85s ease-out; z-index:2; }
 .prog-row .rank{
   font-family:var(--font-mono); font-weight:700; font-size:13px; color:var(--ink-faint);
   width:22px; text-align:center;
@@ -754,7 +760,7 @@ const SOURCES = [
   {t:'End stepped-up basis / tax gains at death ≈ $13–54B/yr', o:'CBO ($536B/10yr); Bipartisan Policy Center ($130B)', u:'https://www.crfb.org/blogs/closing-stepped-basis-loophole'},
 ];
 
-const DEFAULT_ORDER = ['housing','leave','meals','prek','childcare','college','m4a'];
+const DEFAULT_ORDER = ['pubopt','housing','leave','meals','prek','childcare','college'];
 
 // current US law: the baseline where these levers add ~$0 of new revenue
 const CURRENT = {corpRate:21, buyback:1, corpmin:15, uhnwWealth:0, capgains:false, minincome:false, stepup:false, wealth:0, estate:false};
@@ -1043,13 +1049,50 @@ function move(id, dir){
   const i = state.order.indexOf(id);
   const j = i+dir;
   if (i<0 || j<0 || j>=state.order.length) return;
+  const track = document.getElementById('track');
+  const reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  // FLIP: record row positions before the reorder
+  const before = {};
+  track.querySelectorAll('.prog-row').forEach(r=>{ before[r.dataset.id] = r.getBoundingClientRect().top; });
   [state.order[i], state.order[j]] = [state.order[j], state.order[i]];
   renderAll();
+  // invert + play: slide each row from its old spot to the new one
+  track.querySelectorAll('.prog-row').forEach(r=>{
+    const dy = before[r.dataset.id] - r.getBoundingClientRect().top;
+    if (dy && !reduce){
+      r.animate([{transform:`translateY(${dy}px)`},{transform:'translateY(0)'}],
+        {duration:360, easing:'cubic-bezier(.34,1.15,.4,1)'});
+    }
+    if (r.dataset.id===id) r.classList.add('just-moved');
+  });
+  // keep keyboard focus on the moved control so it can be pressed again
+  const moved = track.querySelector(`.prog-row[data-id="${id}"]`);
+  if (moved){
+    const btn = moved.querySelector(`[data-${dir<0?'up':'down'}]:not([disabled])`)
+             || moved.querySelector('[data-up]:not([disabled]),[data-down]:not([disabled])');
+    if (btn) btn.focus();
+  }
 }
+// Competing routes to health coverage — you pick one, not several.
+// Medicare for All covers everyone, so it's mutually exclusive with the
+// à-la-carte options; those three may still combine with each other.
+const EXCLUSIVE = {
+  m4a: ['pubopt','med60','closegap'],
+  pubopt: ['m4a'],
+  med60: ['m4a'],
+  closegap: ['m4a'],
+};
 function toggleProgram(id){
   const i = state.order.indexOf(id);
-  if (i>=0) state.order.splice(i,1);
-  else state.order.push(id);
+  if (i>=0){
+    state.order.splice(i,1);
+  } else {
+    (EXCLUSIVE[id]||[]).forEach(cid=>{
+      const j = state.order.indexOf(cid);
+      if (j>=0) state.order.splice(j,1);
+    });
+    state.order.push(id);
+  }
   renderAll();
 }
 
