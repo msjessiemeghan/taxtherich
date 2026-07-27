@@ -117,6 +117,32 @@ button{font:inherit; color:inherit; cursor:pointer}
 }
 .theme-btn:hover{border-color:var(--money); color:var(--ink)}
 
+/* ===== Sticky condensed summary bar ========================== */
+.statbar{
+  position:fixed; top:0; left:0; right:0; z-index:60;
+  background:color-mix(in srgb, var(--surface) 90%, transparent);
+  -webkit-backdrop-filter:blur(9px); backdrop-filter:blur(9px);
+  border-bottom:1px solid var(--line);
+  transform:translateY(-101%); transition:transform .3s cubic-bezier(.4,0,.1,1);
+  box-shadow:0 6px 18px rgba(20,40,30,.07);
+}
+.statbar.show{transform:translateY(0)}
+.statbar-inner{max-width:var(--maxw); margin:0 auto; padding:8px 20px;
+  display:flex; align-items:center; justify-content:space-between; gap:16px}
+.sb-brand{font-family:var(--font-display); font-weight:700; font-size:14px; color:var(--money); white-space:nowrap}
+.sb-brand b{color:var(--gold)}
+.sb-group{display:flex; align-items:center; gap:20px}
+.sb-stat{display:flex; flex-direction:column; line-height:1.1}
+.sb-val{font-family:var(--font-mono); font-weight:700; font-size:14.5px; color:var(--ink); font-variant-numeric:tabular-nums}
+.sb-lbl{font-size:9px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-faint); margin-top:1px}
+.sb-cov{display:flex; align-items:center; gap:8px}
+.sb-cov svg{display:block; flex:none}
+@media (max-width:560px){
+  .sb-brand{display:none}
+  .sb-hide-sm{display:none}
+  .sb-group{gap:16px; width:100%; justify-content:space-around}
+}
+
 /* ===== Hero / revenue ======================================== */
 .hero{padding:40px 0 8px}
 .hero h1{
@@ -478,6 +504,26 @@ a.txt{color:var(--money)}
     </button>
   </div>
 </header>
+
+<div class="statbar" id="statbar" aria-hidden="true">
+  <div class="statbar-inner">
+    <span class="sb-brand">The People's <b>Ledger</b></span>
+    <div class="sb-group">
+      <div class="sb-stat"><span class="sb-val" id="sbRevenue">$0</span><span class="sb-lbl">raised/yr</span></div>
+      <div class="sb-stat sb-hide-sm"><span class="sb-val" id="sbAvail">$0</span><span class="sb-lbl">available</span></div>
+      <div class="sb-cov">
+        <svg width="30" height="30" viewBox="0 0 36 36" aria-hidden="true">
+          <circle cx="18" cy="18" r="15" fill="none" stroke="var(--line)" stroke-width="4"></circle>
+          <circle id="sbArc" cx="18" cy="18" r="15" fill="none" stroke="var(--money)" stroke-width="4"
+            stroke-linecap="round" stroke-dasharray="94.25" stroke-dashoffset="94.25"
+            transform="rotate(-90 18 18)" style="transition:stroke-dashoffset .4s cubic-bezier(.4,0,.1,1)"></circle>
+        </svg>
+        <div class="sb-stat"><span class="sb-val" id="sbCov">0%</span><span class="sb-lbl">funded</span></div>
+      </div>
+      <div class="sb-stat sb-hide-sm"><span class="sb-val" id="sbCounts">0/0</span><span class="sb-lbl">programs</span></div>
+    </div>
+  </div>
+</div>
 
 <main class="wrap">
 
@@ -962,6 +1008,8 @@ function renderRevenue(){
     const t = document.getElementById('total-'+g.id);
     if (t) t.textContent = money(byGroup[g.id])+'/yr';
   });
+  const sbr = document.getElementById('sbRevenue');
+  if (sbr) sbr.textContent = money(total);
 }
 function renderDefense(){
   const s = defenseSavings();
@@ -993,6 +1041,11 @@ function renderCoverage(){
   const gl = document.getElementById('gapLabel');
   if (gap>0) gl.innerHTML = 'Shortfall <b>'+money(gap)+'</b>';
   else gl.innerHTML = 'Surplus <b>'+money(total-totalNeed)+'</b>';
+  // condensed sticky bar
+  const sbA=document.getElementById('sbAvail'); if (sbA) sbA.textContent=money(f.total);
+  const sbc=document.getElementById('sbCov'); if (sbc) sbc.textContent=Math.round(pct*100)+'%';
+  const sbArc=document.getElementById('sbArc'); if (sbArc) sbArc.style.strokeDashoffset=(2*Math.PI*15)*(1-pct);
+  const sbn=document.getElementById('sbCounts'); if (sbn) sbn.textContent=rows.filter(r=>r.status==='full').length+'/'+rows.length;
 }
 
 /* ============ RENDER: TRACK ============ */
@@ -1244,6 +1297,17 @@ document.getElementById('btnExample').addEventListener('click', ()=>setTaxes('de
 renderAll();
 LEVERS.forEach(applyLeverWarn);
 applyLeverWarn(DEFENSE);
+
+// reveal the condensed sticky bar once the full readout scrolls above the viewport
+(function(){
+  const readout=document.querySelector('.readout'), statbar=document.getElementById('statbar');
+  if (readout && statbar && 'IntersectionObserver' in window){
+    new IntersectionObserver(es=>{
+      const e=es[0];
+      statbar.classList.toggle('show', !e.isIntersecting && e.boundingClientRect.top < 0);
+    }, {threshold:0}).observe(readout);
+  }
+})();
 </script>
 </body>
 </html>
